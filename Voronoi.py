@@ -109,8 +109,8 @@ def generate_CVD(points, iterations, bounding_box):
     return voronoi(p, bounding_box)
         
 
-# plots vornoi data on a pyplot
-def plot_vornoi_diagram(vor, bounding_box):
+# returns a pyplot of given voronoi data
+def plot_vornoi_diagram(vor, bounding_box, show_figure):
     # Initializes pyplot stuff
     fig = pl.figure()
     ax = fig.gca()
@@ -136,4 +136,6 @@ def plot_vornoi_diagram(vor, bounding_box):
     ax.set_xlim([bounding_box[0]-width*margin_percent, bounding_box[1]+width*margin_percent])
     ax.set_ylim([bounding_box[2]-height*margin_percent, bounding_box[3]+height*margin_percent])
 
-    pl.show()
+    if show_figure:
+        pl.show()
+    return fig
