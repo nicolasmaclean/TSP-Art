@@ -1,6 +1,6 @@
 from PIL import Image, ImageDraw
 import matplotlib.pyplot as plt
-from Voronoi import voronoi, generate_CVD, plot_vornoi_diagram
+from Voronoi import bounded_voronoi, generate_CVD, plot_vornoi_diagram
 import numpy as np
 import random
 import math
@@ -8,7 +8,7 @@ import copy
 import time
 
 # plots a stippled verison of the image
-def stipple(original_image, importance_sampling, stipple_amount):
+def stipple(original_image, importance_sampling, stipple_amount, iterations):
     # stores a gray scale copy of the image
     image = original_image.convert('LA')
 
@@ -16,7 +16,7 @@ def stipple(original_image, importance_sampling, stipple_amount):
     bounding_box = [0, image.size[0], 0, image.size[1]]
 
     # generates centroidal voronoi diagram
-    vor = generate_CVD(points, 10, bounding_box)
+    vor = generate_CVD(points, iterations, bounding_box)
 
     # plots voronoi and displays image
     fig = plot_vornoi_diagram(vor, bounding_box, False)
