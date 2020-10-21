@@ -1,14 +1,17 @@
 # A little package for computing Voronoi diagrams within bounded regions using scipy
 #
-# A lot of this is from the help of a Flabetvvibes
+# A lot of this is from the help of a Flabetvvibes and Energya on StackOverflow
 # 
 #
 # How to use
-# voronoi() to generate a diagram for the given input points in a bounded region
-# generate_CVD() to generate a centroidal voronoi diagram within a bounded box with x iterations of loyd's algorithm
+# bounded_voronoi() to generate a diagram for the given input points in a bounded region
+# bounded_CVD() to generate a centroidal voronoi diagram within a bounded box with x iterations of loyd's algorithm
 # plot_vornoi_diagram() plot a bounded voronoi diagram
 
 import matplotlib.pyplot as pl
+import matplotlib.path as pyPath
+from shapely.geometry.polygon import Polygon, Point
+import shapely
 import numpy as np
 import scipy as sp
 import scipy.spatial
@@ -84,7 +87,7 @@ def centroid_region(vertices):
 
 
 # Performs x iterations of loyd's algorithm to calculate a centroidal vornoi diagram
-def generate_CVD(points, iterations, bounding_box):
+def bounded_CVD(points, iterations, bounding_box):
     p = copy.copy(points)
 
     for i in range(iterations):
@@ -99,10 +102,112 @@ def generate_CVD(points, iterations, bounding_box):
         p = np.array(centroids)
 
     return bounded_voronoi(p, bounding_box)
-        
 
+
+# returns a cummulative summation matrix of given 2d array
+def generate_cummulative_summation_matrix(weights):
+    width, height = weights.shape
+    cumsum = np.zeros(weights.shape)
+
+    for x in range (1,width):
+        for y in range(height):
+            cumsum[x, y] = cumsum[x-1, y] + weights[x, y]
+
+    return cumsum
+
+
+def get_Bounding_Box(vertices):
+    bb = [vertices[0][0], 0, vertices[0][1], 0] # [xmin, xmax, ymin, ymax]
+
+    for vertex in vertices:
+        if(vertex[0] < bb[0]):
+            bb[0] = vertex[0]
+        if(vertex[0] > bb[1]):
+            bb[1] = vertex[0]
+        if(vertex[1] < bb[2]):
+            bb[2] = vertex[1]
+        if(vertex[1] > bb[3]):
+            bb[3] = vertex[1]
+
+        bb[0] = np.floor(bb[0])-1
+        bb[2] = np.floor(bb[2])-1
+        bb[1] = np.ceil(bb[1])+1
+        bb[3] = np.ceil(bb[3])+1
+    
+    return bb
+
+# returns coordinates of the weighted centroid using Grant Trebbin's techinique
+def calc_weighted_centroid(P, Q, vertices):
+    width, height = P.shape
+    vertices = [ [i[0]-1, i[1]-1] for i in vertices] # adjust x values for vertices to compensate for zero padding in P/Q
+
+    px = []
+    polygon = Polygon(vertices)
+    bounding_box = get_Bounding_Box(vertices)
+
+    for y in range(int(bounding_box[2]), int(bounding_box[3])):
+        row = []
+        for x in range(int(bounding_box[0]), int(bounding_box[1])):
+            if polygon.contains(Point(x, y)) or polygon.touches(Point(x, y)):
+                row.append((x, y))
+        if(row != []):
+            px.append(row)
+
+
+    denom = 0
+    xNum = 0
+    yNum = 0
+
+    for row in px:
+        first = row[0]
+        last = row[-1]
+
+        denom += P[last] - P[first]
+        xNum += (last[0]*P[last]-first[0]*P[first]) - (Q[last]-Q[first])
+        yNum += (width-last[1])*(P[last]-P[first])
+
+    if(denom == 0 or xNum == 0 or yNum == 0): # todo denom, xNum, and yNum become zero when point density is higher
+        print("trying to divide by zero")
+        print("bounding box for cell: " + str(bounding_box))
+        # print("pixels in cell: " + str(px))
+
+    cx = xNum/denom
+    cy = yNum/denom
+    # print("denom = " + str(denom) + " xNum = " + str(xNum) + " yNum = " + str(yNum) + " centroid = (" + str(cx) + ", " + str(cy) + ")")
+
+    return np.array([[cx, cy]])
+
+
+# Performs x iterations of loyd's algorithm to calculate a weighted centroidal vornoi diagram
+def bounded_weighted_CVD(points, iterations, bounding_box, weights):
+    print("Voronoi.py:: creating bounded_weighted_CVD")
+    pt = copy.copy(points)
+
+
+    weights = np.pad(weights, ((1, 0), (0, 0)), mode='constant') # zero pads to prep for cummulative summation
+    print("Voronoi.py:: making first Summation Matrix P")
+    P = generate_cummulative_summation_matrix(weights)
+    print("Voronoi.py:: making second Summation Matrix Q")
+    Q = generate_cummulative_summation_matrix(P)
+
+    for i in range(iterations):
+        print(len([x for x in pt if x[0] < bounding_box[0] or x[0] > bounding_box[1] or x[1] < bounding_box[2] or x[1] > bounding_box[3]]))
+        vor = bounded_voronoi(pt, bounding_box)
+        print("Voronoi.py:: " + str(i+1) + " iteration of " + str(iterations) + " of loyd's alogithm:: " + str(len(vor.filtered_regions)) + " regions in diagram")
+        centroids = []
+
+        for region in vor.filtered_regions:
+            vertices = vor.vertices[region] # grabs vertices for the region and adds a duplicate of the first one to the end
+            centroid = calc_weighted_centroid(P, Q, vertices)
+            centroids.append(list(centroid[0, :]))
+
+        pt = np.array(centroids)
+
+    return bounded_voronoi(pt, bounding_box)
+        
 # returns a pyplot of given voronoi data
 def plot_vornoi_diagram(vor, bounding_box, show_figure):
+    print("Voronoi.py:: Plotting Voronoi Diagram")
     # Initializes pyplot stuff
     fig = pl.figure()
     ax = fig.gca()
